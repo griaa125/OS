@@ -1,0 +1,2301 @@
+::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* EXE Emulator Window */
+        .exe-emulator {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .exe-emulator-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .exe-emulator-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .exe-emulator-desc {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            max-width: 400px;
+        }
+
+        .exe-emulator-status {
+            padding: 12px 24px;
+            background: rgba(0, 120, 212, 0.2);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--accent);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            #left-dock, #right-dock {
+                display: none;
+            }
+
+            #center-dock {
+                bottom: 10px;
+                padding: 10px 18px;
+            }
+
+            .dock-item {
+                width: 52px;
+                height: 52px;
+            }
+
+            #start-menu {
+                width: 95%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="desktop">
+        <div class="desktop-icons" id="desktop-icons"></div>
+    </div>
+
+    <!-- Left Dock - Weather -->
+    <div id="left-dock" title="Погода">
+        <div class="weather-icon-small">☀️</div>
+        <div style="display: flex; flex-direction: column;">
+            <div class="weather-temp-small">24°C</div>
+        </div>
+    </div>
+
+    <!-- Center Dock - Apps -->
+    <div id="center-dock">
+        <div class="dock-item" data-app="start" title="Пуск">
+            <i class="fa-brands fa-windows"></i>
+        </div>
+        <div class="dock-separator"></div>
+        <div class="dock-item" data-app="explorer" title="Проводник">
+            <i class="fa-solid fa-folder-open"></i>
+        </div>
+        <div class="dock-item" data-app="notepad" title="Блокнот">
+            <i class="fa-solid fa-file-lines"></i>
+        </div>
+        <div class="dock-item" data-app="calculator" title="Калькулятор">
+            <i class="fa-solid fa-calculator"></i>
+        </div>
+        <div class="dock-item" data-app="browser" title="Браузер">
+            <i class="fa-solid fa-globe"></i>
+        </div>
+        <div class="dock-item" data-app="paint" title="Paint">
+            <i class="fa-solid fa-paintbrush"></i>
+        </div>
+        <div class="dock-separator"></div>
+        <div class="dock-item" data-app="settings" title="Настройки">
+            <i class="fa-solid fa-gear"></i>
+        </div>
+    </div>
+
+    <!-- Right Dock - System -->
+    <div id="right-dock">
+        <div class="system-icon-item" title="Wi-Fi">
+            <i class="fa-solid fa-wifi"></i>
+        </div>
+        <div class="system-icon-item" title="Звук">
+            <i class="fa-solid fa-volume-high"></i>
+        </div>
+        <div class="system-icon-item" title="Батарея">
+            <i class="fa-solid fa-battery-three-quarters"></i>
+        </div>
+        <div class="time-compact" id="time-compact" title="Дата и время">
+            <div class="time-compact-time" id="clock-time-compact">12:45</div>
+            <div class="time-compact-date" id="clock-date-compact">08.11.2025</div>
+        </div>
+    </div>
+
+    <!-- Start Menu -->
+    <div id="start-menu">
+        <div class="start-header">
+            <div class="start-user">
+                <div class="start-user-avatar">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div class="start-user-name">Пользователь</div>
+            </div>
+            <input type="text" class="start-search" placeholder="Поиск приложений, файлов..." id="start-search">
+        </div>
+        <div class="start-content">
+            <div class="start-section">
+                <div class="start-section-title">Закреплённые</div>
+                <div class="start-apps-grid" id="start-apps-pinned"></div>
+            </div>
+            <div class="start-section">
+                <div class="start-section-title">Все приложения</div>
+                <div class="start-apps-grid" id="start-apps-all"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="context-menu"></div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-title" id="modal-title">Создать</div>
+            <input type="text" class="modal-input" id="modal-input" placeholder="Введите название...">
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" id="modal-cancel">Отмена</button>
+                <button class="modal-btn primary" id="modal-confirm">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications -->
+    <div id="notifications"></div>
+
+    <script>
+        // ========================================
+        // GLOBAL STATE & VIRTUAL FILE SYSTEM
+        // ========================================
+        const VFS = {
+            desktop: [],
+            documents: [],
+            images: [],
+            downloads: [],
+            music: [],
+            videos: []
+        };
+
+        // Инициализация базовых папок
+        function initVFS() {
+            VFS.desktop = [
+                { id: 'comp', name: 'Компьютер', icon: 'fa-solid fa-computer', type: 'folder', children: {} },
+                { id: 'trash', name: 'Корзина', icon: 'fa-solid fa-trash', type: 'folder', children: {} }
+            ];
+        }
+
+        let zIndex = 200;
+        let modalCallback = null;
+        let currentPath = ['desktop'];
+        let selectedFiles = [];
+
+        const WALLPAPERS = [
+            'https://images.unsplash.com/photo-1579546929518-9e396f0ab877?w=2048',
+            'https://images.unsplash.com/photo-1557683316-973673baf926?w=2048',
+            'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=2048',
+            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=2048',
+            'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?w=2048',
+            'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2048'
+        ];
+
+        let currentWallpaper = 0;
+
+        function uid(prefix = 'id') {
+            return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+        }
+
+        // ========================================
+        // FILE SYSTEM OPERATIONS
+        // ========================================
+        function getItemsAtPath(path) {
+            if (path[0] === 'desktop') {
+                return VFS.desktop;
+            }
+            
+            let items = VFS[path[0]];
+            for (let i = 1; i < path.length; i++) {
+                const folder = items.find(item => item.id === path[i]);
+                if (folder && folder.children) {
+                    items = Object.values(folder.children);
+                } else {
+                    return [];
+                }
+            }
+            return items || [];
+        }
+
+        function addItemAtPath(path, item) {
+            if (path.length === 1 && path[0] === 'desktop') {
+                VFS.desktop.push(item);
+                return;
+            }
+
+            let items = VFS[path[0]];
+            for (let i = 1; i < path.length - 1; i++) {
+                const folder = items.find(f => f.id === path[i]);
+                if (folder && folder.children) {
+                    items = folder.children;
+                }
+            }
+
+            const parentFolder = items.find(f => f.id === path[path.length - 1]);
+            if (parentFolder && parentFolder.type === 'folder') {
+                if (!parentFolder.children) {
+                    parentFolder.children = {};
+                }
+                parentFolder.children[item.id] = item;
+            }
+        }
+
+        // ========================================
+        // APP MANAGER
+        // ========================================
+        const AppManager = (() => {
+            const apps = {
+                explorer: {
+                    name: 'Проводник',
+                    icon: 'fa-solid fa-folder-open',
+                    type: 'js',
+                    create: (path) => createExplorer(path || ['desktop'])
+                },
+                notepad: {
+                    name: 'Блокнот',
+                    icon: 'fa-solid fa-file-lines',
+                    type: 'js',
+                    create: () => createNotepad()
+                },
+                calculator: {
+                    name: 'Калькулятор',
+                    icon: 'fa-solid fa-calculator',
+                    type: 'exe',
+                    path: 'C:\\Windows\\System32\\calc.exe'
+                },
+                browser: {
+                    name: 'Браузер',
+                    icon: 'fa-solid fa-globe',
+                    type: 'js',
+                    create: () => createBrowser()
+                },
+                paint: {
+                    name: 'Paint',
+                    icon: 'fa-solid fa-paintbrush',
+                    type: 'exe',
+                    path: 'C:\\Windows\\System32\\mspaint.exe'
+                },
+                settings: {
+                    name: 'Настройки',
+                    icon: 'fa-solid fa-gear',
+                    type: 'js',
+                    create: () => createSettings()
+                },
+                notepad_exe: {
+                    name: 'Notepad (EXE)',
+                    icon: 'fa-solid fa-note-sticky',
+                    type: 'exe',
+                    path: 'C:\\Windows\\System32\\notepad.exe'
+                },
+                cmd: {
+                    name: 'CMD',
+                    icon: 'fa-solid fa-terminal',
+                    type: 'exe',
+                    path: 'C:\\Windows\\System32\\cmd.exe'
+                }
+            };
+
+            function launch(appId, data) {
+                if (!apps[appId]) {
+                    showNotification('Ошибка', `Приложение ${appId} не найдено`);
+                    return;
+                }
+
+                const app = apps[appId];
+
+                // Launch .EXE - создаём эмуляцию внутри окна
+                if (app.type === 'exe') {
+                    createExeEmulator(appId, app.name, app.icon, app.path);
+                    return;
+                }
+
+                // Launch JS App
+                if (appId !== 'explorer') {
+                    const existingWindow = document.querySelector(`.window[data-app="${appId}"]`);
+                    if (existingWindow) {
+                        WindowManager.focus(existingWindow);
+                        WindowManager.restore(existingWindow);
+                        return;
+                    }
+                }
+                app.create(data);
+            }
+
+            function getApps() {
+                return apps;
+            }
+
+            return { launch, getApps };
+        })();
+
+        // ========================================
+        // WINDOW MANAGER
+        // ========================================
+        const WindowManager = (() => {
+            let draggedWindow = null;
+            let dragOffset = { x: 0, y: 0 };
+            let resizedWindow = null;
+            let resizeData = {};
+
+            function create(appId, title, icon, content) {
+                const win = document.createElement('div');
+                win.className = 'window';
+                win.dataset.app = appId;
+                win.style.zIndex = ++zIndex;
+
+                const w = 800;
+                const h = 550;
+                win.style.width = `${w}px`;
+                win.style.height = `${h}px`;
+                win.style.left = `${(window.innerWidth - w) / 2 + (Math.random() - 0.5) * 100}px`;
+                win.style.top = `${100 + (Math.random() - 0.5) * 50}px`;
+
+                win.innerHTML = `
+                    <div class="window-header">
+                        <div class="window-controls">
+                            <button class="window-btn close"></button>
+                            <button class="window-btn minimize"></button>
+                            <button class="window-btn maximize"></button>
+                        </div>
+                        <i class="window-icon ${icon}"></i>
+                        <span class="window-title">${title}</span>
+                    </div>
+                    <div class="window-content">${content}</div>
+                    <div class="resize-handle n"></div>
+                    <div class="resize-handle s"></div>
+                    <div class="resize-handle w"></div>
+                    <div class="resize-handle e"></div>
+                    <div class="resize-handle nw"></div>
+                    <div class="resize-handle ne"></div>
+                    <div class="resize-handle sw"></div>
+                    <div class="resize-handle se"></div>
+                `;
+
+                document.getElementById('desktop').appendChild(win);
+
+                const header = win.querySelector('.window-header');
+                header.addEventListener('mousedown', startDrag);
+                header.addEventListener('dblclick', () => toggleMaximize(win));
+
+                win.querySelector('.minimize').addEventListener('click', () => minimize(win));
+                win.querySelector('.maximize').addEventListener('click', () => toggleMaximize(win));
+                win.querySelector('.close').addEventListener('click', () => close(win));
+
+                win.addEventListener('mousedown', () => focus(win));
+
+                win.querySelectorAll('.resize-handle').forEach(handle => {
+                    const dir = Array.from(handle.classList).find(c => c !== 'resize-handle');
+                    handle.addEventListener('mousedown', (e) => startResize(e, win, dir));
+                });
+
+                updateDock();
+                return win;
+            }
+
+            function startDrag(e) {
+                if (e.target.closest('.window-controls')) return;
+                draggedWindow = e.target.closest('.window');
+                if (!draggedWindow || draggedWindow.classList.contains('maximized')) return;
+
+                const rect = draggedWindow.getBoundingClientRect();
+                dragOffset.x = e.clientX - rect.left;
+                dragOffset.y = e.clientY - rect.top;
+                focus(draggedWindow);
+            }
+
+            function doDrag(e) {
+                if (!draggedWindow) return;
+                draggedWindow.style.left = `${e.clientX - dragOffset.x}px`;
+                draggedWindow.style.top = `${e.clientY - dragOffset.y}px`;
+            }
+
+            function stopDrag() {
+                draggedWindow = null;
+            }
+
+            function startResize(e, win, direction) {
+                e.stopPropagation();
+                resizedWindow = win;
+                const rect = win.getBoundingClientRect();
+                resizeData = {
+                    direction,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    startWidth: rect.width,
+                    startHeight: rect.height,
+                    startLeft: rect.left,
+                    startTop: rect.top
+                };
+                focus(resizedWindow);
+            }
+
+            function doResize(e) {
+                if (!resizedWindow) return;
+                const dx = e.clientX - resizeData.startX;
+                const dy = e.clientY - resizeData.startY;
+                const dir = resizeData.direction;
+
+                let newWidth = resizeData.startWidth;
+                let newHeight = resizeData.startHeight;
+                let newLeft = resizeData.startLeft;
+                let newTop = resizeData.startTop;
+
+                if (dir.includes('e')) newWidth = Math.max(500, resizeData.startWidth + dx);
+                if (dir.includes('w')) {
+                    newWidth = Math.max(500, resizeData.startWidth - dx);
+                    newLeft = resizeData.startLeft + (resizeData.startWidth - newWidth);
+                }
+                if (dir.includes('s')) newHeight = Math.max(400, resizeData.startHeight + dy);
+                if (dir.includes('n')) {
+                    newHeight = Math.max(400, resizeData.startHeight - dy);
+                    newTop = resizeData.startTop + (resizeData.startHeight - newHeight);
+                }
+
+                resizedWindow.style.width = `${newWidth}px`;
+                resizedWindow.style.height = `${newHeight}px`;
+                resizedWindow.style.left = `${newLeft}px`;
+                resizedWindow.style.top = `${newTop}px`;
+            }
+
+            function stopResize() {
+                resizedWindow = null;
+            }
+
+            function minimize(win) {
+                win.classList.add('minimizing');
+                setTimeout(() => {
+                    win.classList.remove('minimizing');
+                    win.classList.add('minimized');
+                    updateDock();
+                }, 600);
+            }
+
+            function restore(win) {
+                win.classList.remove('minimized');
+                win.classList.add('restoring');
+                setTimeout(() => {
+                    win.classList.remove('restoring');
+                }, 600);
+                focus(win);
+                updateDock();
+            }
+
+            function toggleMaximize(win) {
+                win.classList.toggle('maximized');
+            }
+
+            function close(win) {
+                win.classList.add('closing');
+                setTimeout(() => {
+                    win.remove();
+                    updateDock();
+                }, 300);
+            }
+
+            function focus(win) {
+                win.style.zIndex = ++zIndex;
+            }
+
+            function updateDock() {
+                document.querySelectorAll('#center-dock .dock-item[data-app]').forEach(item => {
+                    const appId = item.dataset.app;
+                    if (appId === 'start') return;
+
+                    const hasWindow = document.querySelector(`.window[data-app="${appId}"]:not(.minimized)`);
+                    item.classList.toggle('active', !!hasWindow);
+                });
+            }
+
+            document.addEventListener('mousemove', (e) => {
+                doDrag(e);
+                doResize(e);
+            });
+
+            document.addEventListener('mouseup', () => {
+                stopDrag();
+                stopResize();
+            });
+
+            return { create, minimize, restore, focus, close, updateDock };
+        })();
+
+        // ========================================
+        // APP CREATORS
+        // ========================================
+        function createExplorer(path = ['desktop']) {
+            currentPath = path;
+            const items = getItemsAtPath(path);
+
+            const pathStr = path.join(' > ');
+
+            const content = `
+                <div class="explorer-body">
+                    <div class="explorer-sidebar">
+                        <div class="sidebar-section">
+                            <div class="sidebar-title">Избранное</div>
+                            <div class="sidebar-item ${path[0] === 'desktop' ? 'active' : ''}" data-path="desktop">
+                                <i class="fa-solid fa-desktop"></i>
+                                Рабочий стол
+                            </div>
+                            <div class="sidebar-item ${path[0] === 'documents' ? 'active' : ''}" data-path="documents">
+                                <i class="fa-solid fa-file-lines"></i>
+                                Документы
+                            </div>
+                            <div class="sidebar-item ${path[0] === 'downloads' ? 'active' : ''}" data-path="downloads">
+                                <i class="fa-solid fa-download"></i>
+                                Загрузки
+                            </div>
+                        </div>
+                        <div class="sidebar-section">
+                            <div class="sidebar-title">Библиотеки</div>
+                            <div class="sidebar-item ${path[0] === 'images' ? 'active' : ''}" data-path="images">
+                                <i class="fa-solid fa-image"></i>
+                                Изображения
+                            </div>
+                            <div class="sidebar-item ${path[0] === 'music' ? 'active' : ''}" data-path="music">
+                                <i class="fa-solid fa-music"></i>
+                                Музыка
+                            </div>
+                            <div class="sidebar-item ${path[0] === 'videos' ? 'active' : ''}" data-path="videos">
+                                <i class="fa-solid fa-video"></i>
+                                Видео
+                            </div>
+                        </div>
+                    </div>
+                    <div class="explorer-content">
+                        <div class="app-toolbar">
+                            <button class="toolbar-btn" data-action="new-folder">
+                                <i class="fa-solid fa-folder-plus"></i>
+                                Новая папка
+                            </button>
+                            <button class="toolbar-btn" data-action="new-file">
+                                <i class="fa-solid fa-file-circle-plus"></i>
+                                Новый файл
+                            </button>
+                            <button class="toolbar-btn" data-action="back" ${path.length <= 1 ? 'disabled' : ''}>
+                                <i class="fa-solid fa-arrow-left"></i>
+                                Назад
+                            </button>
+                            <button class="toolbar-btn" data-action="refresh">
+                                <i class="fa-solid fa-rotate"></i>
+                                Обновить
+                            </button>
+                        </div>
+                        <div class="explorer-path">${pathStr}</div>
+                        <div class="file-grid" id="file-grid">
+                            ${items.map(f => `
+                                <div class="file-item" data-id="${f.id}" data-type="${f.type}">
+                                    <i class="${f.icon}"></i>
+                                    <div class="file-name">${f.name}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const win = WindowManager.create('explorer', `Проводник - ${pathStr}`, 'fa-solid fa-folder-open', content);
+
+            // Sidebar navigation
+            win.querySelectorAll('.sidebar-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const newPath = [item.dataset.path];
+                    win.remove();
+                    createExplorer(newPath);
+                });
+            });
+
+            // File actions
+            win.querySelectorAll('.file-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    if (!e.ctrlKey) {
+                        win.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+                    }
+                    item.classList.toggle('selected');
+                });
+
+                item.addEventListener('dblclick', () => {
+                    const itemId = item.dataset.id;
+                    const type = item.dataset.type;
+                    const fileObj = items.find(f => f.id === itemId);
+
+                    if (type === 'folder') {
+                        win.remove();
+                        createExplorer([...currentPath, itemId]);
+                    } else {
+                        showNotification('Файл', `Открыт: ${fileObj.name}`);
+                    }
+                });
+            });
+
+            // Toolbar actions
+            win.querySelector('[data-action="new-folder"]').addEventListener('click', () => {
+                showModal('Новая папка', 'Введите название папки', (name) => {
+                    if (name) {
+                        const newFolder = {
+                            id: uid('folder'),
+                            name,
+                            icon: 'fa-solid fa-folder',
+                            type: 'folder',
+                            children: {}
+                        };
+                        addItemAtPath(currentPath, newFolder);
+                        win.remove();
+                        createExplorer(currentPath);
+                        showNotification('Создано', `Папка "${name}" создана`);
+                    }
+                });
+            });
+
+            win.querySelector('[data-action="new-file"]').addEventListener('click', () => {
+                showModal('Новый файл', 'Введите название файла', (name) => {
+                    if (name) {
+                        const newFile = {
+                            id: uid('file'),
+                            name,
+                            icon: 'fa-solid fa-file',
+                            type: 'file'
+                        };
+                        addItemAtPath(currentPath, newFile);
+                        win.remove();
+                        createExplorer(currentPath);
+                        showNotification('Создано', `Файл "${name}" создан`);
+                    }
+                });
+            });
+
+            win.querySelector('[data-action="back"]').addEventListener('click', () => {
+                if (currentPath.length > 1) {
+                    const newPath = currentPath.slice(0, -1);
+                    win.remove();
+                    createExplorer(newPath);
+                }
+            });
+
+            win.querySelector('[data-action="refresh"]').addEventListener('click', () => {
+                win.remove();
+                createExplorer(currentPath);
+            });
+        }
+
+        function createNotepad() {
+            const content = `
+                <div class="notepad-content">
+                    <div class="app-toolbar">
+                        <button class="toolbar-btn" data-action="new">
+                            <i class="fa-solid fa-file"></i>
+                            Новый
+                        </button>
+                        <button class="toolbar-btn" data-action="save">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            Сохранить
+                        </button>
+                        <button class="toolbar-btn" data-action="load">
+                            <i class="fa-solid fa-folder-open"></i>
+                            Открыть
+                        </button>
+                    </div>
+                    <textarea class="notepad-textarea" id="notepad-text" placeholder="Начните писать..."></textarea>
+                </div>
+            `;
+
+            const win = WindowManager.create('notepad', 'Блокнот', 'fa-solid fa-file-lines', content);
+
+            const textarea = win.querySelector('#notepad-text');
+            const saved = localStorage.getItem('notepad-content');
+            if (saved) textarea.value = saved;
+
+            win.querySelector('[data-action="new"]').addEventListener('click', () => {
+                if (confirm('Создать новый документ? Несохранённые изменения будут потеряны.')) {
+                    textarea.value = '';
+                }
+            });
+
+            win.querySelector('[data-action="save"]').addEventListener('click', () => {
+                try {
+                    localStorage.setItem('notepad-content', textarea.value);
+                    showNotification('Сохранено', 'Документ сохранён успешно');
+                } catch (e) {
+                    showNotification('Ошибка', 'Не удалось сохранить документ');
+                }
+            });
+
+            win.querySelector('[data-action="load"]').addEventListener('click', () => {
+                const saved = localStorage.getItem('notepad-content');
+                if (saved) {
+                    textarea.value = saved;
+                    showNotification('Загружено', 'Документ загружен');
+                } else {
+                    showNotification('Ошибка', 'Нет сохранённого документа');
+                }
+            });
+        }
+
+        function createBrowser() {
+            const content = `
+                <div style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="app-toolbar">
+                        <button class="toolbar-btn">
+                            <i class="fa-solid fa-arrow-left"></i>
+                        </button>
+                        <button class="toolbar-btn">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                        <button class="toolbar-btn">
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </button>
+                        <input type="text" value="https://example.com" style="flex: 1; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);">
+                    </div>
+                    <iframe src="https://example.com" style="flex: 1; border: none; background: white;"></iframe>
+                </div>
+            `;
+
+            WindowManager.create('browser', 'Браузер', 'fa-solid fa-globe', content);
+        }
+
+        function createSettings() {
+            const isDark = !document.body.classList.contains('light');
+
+            const content = `
+                <div style="padding: 32px;">
+                    <h2 style="margin-bottom: 28px; font-size: 28px;">Настройки системы</h2>
+                    
+                    <div style="margin-bottom: 32px;">
+                        <h3 style="margin-bottom: 16px; font-size: 18px;">Персонализация</h3>
+                        <div style="display: flex; gap: 12px; align-items: center; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 12px;">
+                            <span style="flex: 1;">Тёмная тема</span>
+                            <button class="toolbar-btn" id="toggle-theme">${isDark ? 'Светлая' : 'Тёмная'}</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 32px;">
+                        <h3 style="margin-bottom: 16px; font-size: 18px;">Обои рабочего стола</h3>
+                        <div class="wallpaper-grid">
+                            ${WALLPAPERS.map((url, i) => `
+                                <div class="wallpaper-item ${i === currentWallpaper ? 'active' : ''}" 
+                                     style="background-image: url('${url}')" 
+                                     data-wallpaper="${i}"></div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 style="margin-bottom: 16px; font-size: 18px;">О системе</h3>
+                        <div style="padding: 20px; background: rgba(255,255,255,0.05); border-radius: 12px;">
+                            <p style="margin-bottom: 8px;"><strong>Система:</strong> Advanced OS v1.0</p>
+                            <p style="margin-bottom: 8px;"><strong>Архитектура:</strong> x64</p>
+                            <p style="margin-bottom: 8px;"><strong>Python API:</strong> ${typeof window.pywebview !== 'undefined' ? 'Подключён' : 'Не подключён'}</p>
+                            <p><strong>Особенности:</strong> Вложенные папки, виджеты, анимации</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const win = WindowManager.create('settings', 'Настройки', 'fa-solid fa-gear', content);
+
+            win.querySelector('#toggle-theme').addEventListener('click', () => {
+                document.body.classList.toggle('light');
+                showNotification('Тема изменена', 'Новая тема применена');
+                win.remove();
+                createSettings();
+            });
+
+            win.querySelectorAll('.wallpaper-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const index = parseInt(item.dataset.wallpaper);
+                    currentWallpaper = index;
+                    document.getElementById('desktop').style.backgroundImage = `url('${WALLPAPERS[index]}')`;
+                    win.querySelectorAll('.wallpaper-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    showNotification('Обои изменены', 'Новые обои применены');
+                });
+            });
+        }
+
+        function createExeEmulator(appId, name, icon, path) {
+            const content = `
+                <div class="exe-emulator">
+                    <div class="exe-emulator-icon">
+                        <i class="${icon}"></i>
+                    </div>
+                    <div class="exe-emulator-title">${name}</div>
+                    <div class="exe-emulator-desc">
+                        Приложение запускается в системе Windows.<br>
+                        EXE окна не могут быть встроены в браузер по соображениям безопасности.
+                    </div>
+                    <div class="exe-emulator-status">
+                        <i class="fa-solid fa-circle-check"></i> Приложение запущено
+                    </div>
+                </div>
+            `;
+
+            WindowManager.create(appId, name, icon, content);
+
+            // Запускаем реальное EXE в фоне
+            try {
+                if (window.pywebview && window.pywebview.api) {
+                    window.pywebview.api.launch_exe(path, appId).then(() => {
+                        showNotification('Запущено', `${name} запущен в системе`);
+                    }).catch(() => {
+                        showNotification('Ошибка', `Не удалось запустить ${name}`);
+                    });
+                }
+            } catch (e) {
+                console.error('Error launching exe:', e);
+            }
+        }
+
+        // ========================================
+        // SYSTEM FUNCTIONS
+        // ========================================
+        function updateClock() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            const dateShort = now.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            const timeCompact = document.getElementById('clock-time-compact');
+            const dateCompact = document.getElementById('clock-date-compact');
+            
+            if (timeCompact) timeCompact.textContent = time;
+            if (dateCompact) dateCompact.textContent = dateShort;
+        }
+
+        function showNotification(title, message) {
+            const container = document.getElementById('notifications');
+            const notif = document.createElement('div');
+            notif.className = 'notification';
+            notif.innerHTML = `
+                <div class="notification-header">
+                    <div class="notification-icon">🔔</div>
+                    <div class="notification-title">${title}</div>
+                </div>
+                <div class="notification-message">${message}</div>
+            `;
+
+            container.appendChild(notif);
+
+            setTimeout(() => {
+                notif.style.animation = 'notifSlide 0.3s reverse';
+                setTimeout(() => notif.remove(), 300);
+            }, 4000);
+        }
+
+        function showModal(title, placeholder, callback) {
+            const overlay = document.getElementById('modal-overlay');
+            const modalTitle = document.getElementById('modal-title');
+            const input = document.getElementById('modal-input');
+
+            modalTitle.textContent = title;
+            input.value = '';
+            input.placeholder = placeholder;
+            overlay.classList.add('visible');
+            input.focus();
+
+            modalCallback = callback;
+        }
+
+        function hideModal() {
+            const overlay = document.getElementById('modal-overlay');
+            overlay.classList.remove('visible');
+            modalCallback = null;
+        }
+
+        // ========================================
+        // START MENU
+        // ========================================
+        const StartMenu = (() => {
+            const menu = document.getElementById('start-menu');
+            let isVisible = false;
+
+            function toggle() {
+                isVisible = !isVisible;
+                menu.classList.toggle('visible', isVisible);
+            }
+
+            function hide() {
+                isVisible = false;
+                menu.classList.remove('visible');
+            }
+
+            function init() {
+                const apps = AppManager.getApps();
+                const pinnedContainer = document.getElementById('start-apps-pinned');
+                const allContainer = document.getElementById('start-apps-all');
+
+                const pinned = ['explorer', 'notepad', 'browser', 'calculator', 'settings'];
+
+                pinned.forEach(appId => {
+                    if (apps[appId]) {
+                        const app = apps[appId];
+                        const div = document.createElement('div');
+                        div.className = 'start-app';
+                        div.innerHTML = `
+                            <div class="start-app-icon">
+                                <i class="${app.icon}"></i>
+                            </div>
+                            <div class="start-app-name">${app.name}</div>
+                        `;
+                        div.addEventListener('click', () => {
+                            AppManager.launch(appId);
+                            hide();
+                        });
+                        pinnedContainer.appendChild(div);
+                    }
+                });
+
+                Object.entries(apps).forEach(([appId, app]) => {
+                    if (!pinned.includes(appId)) {
+                        const div = document.createElement('div');
+                        div.className = 'start-app';
+                        div.innerHTML = `
+                            <div class="start-app-icon">
+                                <i class="${app.icon}"></i>
+                            </div>
+                            <div class="start-app-name">${app.name}</div>
+                        `;
+                        div.addEventListener('click', () => {
+                            AppManager.launch(appId);
+                            hide();
+                        });
+                        allContainer.appendChild(div);
+                    }
+                });
+
+                // Search functionality
+                const searchInput = document.getElementById('start-search');
+                searchInput.addEventListener('input', (e) => {
+                    const query = e.target.value.toLowerCase();
+                    document.querySelectorAll('.start-app').forEach(app => {
+                        const name = app.querySelector('.start-app-name').textContent.toLowerCase();
+                        app.style.display = name.includes(query) ? 'flex' : 'none';
+                    });
+                });
+            }
+
+            return { toggle, hide, init };
+        })();
+
+        // ========================================
+        // CONTEXT MENU
+        // ========================================
+        const contextMenu = document.getElementById('context-menu');
+
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+
+            if (e.target.closest('.dock-item') && !e.target.closest('[data-app="start"]')) {
+                const appId = e.target.closest('.dock-item').dataset.app;
+                const hasWindow = document.querySelector(`.window[data-app="${appId}"]`);
+
+                contextMenu.innerHTML = `
+                    <div class="context-item" data-action="open">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        <span>Открыть</span>
+                    </div>
+                    ${hasWindow ? `
+                    <div class="context-item" data-action="close">
+                        <i class="fa-solid fa-xmark"></i>
+                        <span>Закрыть</span>
+                    </div>
+                    ` : ''}
+                `;
+
+                contextMenu.style.left = `${e.clientX}px`;
+                contextMenu.style.top = `${e.clientY}px`;
+                contextMenu.classList.add('visible');
+
+                contextMenu.querySelector('[data-action="open"]').addEventListener('click', () => {
+                    AppManager.launch(appId);
+                    contextMenu.classList.remove('visible');
+                });
+
+                if (hasWindow) {
+                    contextMenu.querySelector('[data-action="close"]').addEventListener('click', () => {
+                        WindowManager.close(hasWindow);
+                        contextMenu.classList.remove('visible');
+                    });
+                }
+            } else if (e.target.closest('#desktop')) {
+                contextMenu.innerHTML = `
+                    <div class="context-item" data-action="refresh">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Обновить</span>
+                    </div>
+                    <div class="context-separator"></div>
+                    <div class="context-item" data-action="new-folder">
+                        <i class="fa-solid fa-folder-plus"></i>
+                        <span>Создать папку</span>
+                    </div>
+                    <div class="context-item" data-action="new-file">
+                        <i class="fa-solid fa-file-circle-plus"></i>
+                        <span>Создать файл</span>
+                    </div>
+                    <div class="context-separator"></div>
+                    <div class="context-item" data-action="personalize">
+                        <i class="fa-solid fa-palette"></i>
+                        <span>Персонализация</span>
+                    </div>
+                    <div class="context-item" data-action="settings">
+                        <i class="fa-solid fa-gear"></i>
+                        <span>Настройки</span>
+                    </div>
+                `;
+
+                contextMenu.style.left = `${e.clientX}px`;
+                contextMenu.style.top = `${e.clientY}px`;
+                contextMenu.classList.add('visible');
+
+                contextMenu.querySelector('[data-action="refresh"]').addEventListener('click', () => {
+                    initDesktopIcons();
+                    contextMenu.classList.remove('visible');
+                    showNotification('Обновлено', 'Рабочий стол обновлён');
+                });
+
+                contextMenu.querySelector('[data-action="new-folder"]').addEventListener('click', () => {
+                    showModal('Новая папка на рабочем столе', 'Введите название', (name) => {
+                        if (name) {
+                            VFS.desktop.push({ 
+                                id: uid('folder'), 
+                                name, 
+                                icon: 'fa-solid fa-folder', 
+                                type: 'folder',
+                                children: {}
+                            });
+                            initDesktopIcons();
+                            showNotification('Создано', `Папка "${name}" создана`);
+                        }
+                    });
+                    contextMenu.classList.remove('visible');
+                });
+
+                contextMenu.querySelector('[data-action="new-file"]').addEventListener('click', () => {
+                    showModal('Новый файл на рабочем столе', 'Введите название', (name) => {
+                        if (name) {
+                            VFS.desktop.push({ 
+                                id: uid('file'),
+                                name, 
+                                icon: 'fa-solid fa-file', 
+                                type: 'file' 
+                            });
+                            initDesktopIcons();
+                            showNotification('Создано', `Файл "${name}" создан`);
+                        }
+                    });
+                    contextMenu.classList.remove('visible');
+                });
+
+                contextMenu.querySelector('[data-action="personalize"]').addEventListener('click', () => {
+                    AppManager.launch('settings');
+                    contextMenu.classList.remove('visible');
+                });
+
+                contextMenu.querySelector('[data-action="settings"]').addEventListener('click', () => {
+                    AppManager.launch('settings');
+                    contextMenu.classList.remove('visible');
+                });
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.context-menu')) {
+                contextMenu.classList.remove('visible');
+            }
+            if (!e.target.closest('#start-menu') && !e.target.closest('[data-app="start"]')) {
+                StartMenu.hide();
+            }
+            // Deselect desktop icons
+            if (e.target.closest('#desktop') && !e.target.closest('.desktop-icon')) {
+                document.querySelectorAll('.desktop-icon').forEach(icon => icon.classList.remove('selected'));
+            }
+        });
+
+        // ========================================
+        // DESKTOP ICONS
+        // ========================================
+        function initDesktopIcons() {
+            const container = document.getElementById('desktop-icons');
+            container.innerHTML = '';
+
+            VFS.desktop.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'desktop-icon';
+                div.dataset.id = item.id;
+                div.dataset.type = item.type;
+                div.innerHTML = `
+                    <i class="desktop-icon-image ${item.icon}"></i>
+                    <div class="desktop-icon-name">${item.name}</div>
+                `;
+
+                div.addEventListener('click', (e) => {
+                    if (!e.ctrlKey) {
+                        document.querySelectorAll('.desktop-icon').forEach(i => i.classList.remove('selected'));
+                    }
+                    div.classList.toggle('selected');
+                });
+
+                div.addEventListener('dblclick', () => {
+                    if (item.type === 'folder') {
+                        AppManager.launch('explorer', ['desktop', item.id]);
+                    } else {
+                        showNotification('Файл', `Открыт: ${item.name}`);
+                    }
+                });
+
+                container.appendChild(div);
+            });
+        }
+
+        // ========================================
+        // DOCK INTERACTIONS
+        // ========================================
+        document.querySelectorAll('#center-dock .dock-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const appId = item.dataset.app;
+
+                if (appId === 'start') {
+                    StartMenu.toggle();
+                    return;
+                }
+
+                const existingWindow = document.querySelector(`.window[data-app="${appId}"]`);
+                if (existingWindow) {
+                    if (existingWindow.classList.contains('minimized')) {
+                        WindowManager.restore(existingWindow);
+                    } else {
+                        WindowManager.minimize(existingWindow);
+                    }
+                } else {
+                    AppManager.launch(appId);
+                }
+            });
+        });
+
+        // ========================================
+        // MODAL INTERACTIONS
+        // ========================================
+        document.getElementById('modal-cancel').addEventListener('click', hideModal);
+
+        document.getElementById('modal-confirm').addEventListener('click', () => {
+            const input = document.getElementById('modal-input');
+            if (modalCallback) {
+                modalCallback(input.value);
+            }
+            hideModal();
+        });
+
+        document.getElementById('modal-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('modal-confirm').click();
+            }
+        });
+
+        document.getElementById('modal-overlay').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                hideModal();
+            }
+        });
+
+        // ========================================
+        // KEYBOARD SHORTCUTS
+        // ========================================
+        document.addEventListener('keydown', (e) => {
+            // ESC - Close active window or context menu
+            if (e.key === 'Escape') {
+                if (contextMenu.classList.contains('visible')) {
+                    contextMenu.classList.remove('visible');
+                    return;
+                }
+                
+                const windows = document.querySelectorAll('.window:not(.minimized)');
+                if (windows.length > 0) {
+                    const topWindow = Array.from(windows).reduce((max, win) =>
+                        parseInt(win.style.zIndex) > parseInt(max.style.zIndex) ? win : max
+                    );
+                    WindowManager.close(topWindow);
+                }
+            }
+
+            // Ctrl+N - New notepad
+            if (e.ctrlKey && e.key === 'n') {
+                e.preventDefault();
+                AppManager.launch('notepad');
+            }
+
+            // Ctrl+E - Explorer
+            if (e.ctrlKey && e.key === 'e') {
+                e.preventDefault();
+                AppManager.launch('explorer');
+            }
+
+            // Delete - Remove selected desktop items
+            if (e.key === 'Delete') {
+                const selected = document.querySelectorAll('.desktop-icon.selected');
+                selected.forEach(icon => {
+                    const id = icon.dataset.id;
+                    const index = VFS.desktop.findIndex(item => item.id === id);
+                    if (index > -1) {
+                        VFS.desktop.splice(index, 1);
+                    }
+                });
+                if (selected.length > 0) {
+                    initDesktopIcons();
+                    showNotification('Удалено', `Удалено элементов: ${selected.length}`);
+                }
+            }
+        });
+
+        // ========================================
+        // INITIALIZATION
+        // ========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initVFS();
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            StartMenu.init();
+            initDesktopIcons();
+
+            showNotification('Добро пожаловать!', 'Advanced OS v1.0 загружена');
+
+            // Check Python API
+            setTimeout(() => {
+                if (typeof window.pywebview === 'undefined') {
+                    showNotification('Информация', 'Для запуска .exe файлов используйте start.py');
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
+                <!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced OS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #1a1f3a;
+            --bg-glass: rgba(26, 31, 58, 0.85);
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #0078d4;
+            --accent-hover: #1890ff;
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: rgba(0, 0, 0, 0.5);
+            --danger: #ff3b30;
+            --success: #00ca4e;
+            --warning: #ffbd4a;
+        }
+
+        body.light {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-glass: rgba(255, 255, 255, 0.85);
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border: rgba(0, 0, 0, 0.1);
+            --shadow: rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* Desktop */
+        #desktop {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background-size: cover;
+            background-position: center;
+            background-image: url('https://images.unsplash.com/photo-1579546929518-9e396f0ab877?w=2048');
+            transition: background-image 0.5s ease;
+        }
+
+        /* Desktop Icons */
+        .desktop-icons {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, 100px);
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .desktop-icon {
+            width: 90px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .desktop-icon:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-3px);
+        }
+
+        .desktop-icon.selected {
+            background: rgba(0, 120, 212, 0.3);
+            border: 2px solid var(--accent);
+        }
+
+        .desktop-icon i {
+            font-size: 48px;
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));
+        }
+
+        .desktop-icon-name {
+            font-size: 12px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            word-break: break-word;
+        }
+
+        /* Left Dock - Weather */
+        #left-dock {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(30px);
+            border-radius: 12px;
+            padding: 8px 12px;
+            box-shadow: 0 4px 16px var(--shadow);
+            border: 1px solid var(--border);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        #left-dock:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px var(--shadow);
+        }
+
+        .weather-icon-small {
+            font-size: 24px;
+        }
+
+        .weather-temp-small {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* Center Dock */
+        #center-dock {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-glass);
+            backdrop-filter: blur(30px);
+            border-radius: 24px;
+            padding: 12px 24px;
+            box-shadow: 0 10px 40px var(--shadow);
+            border: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .dock-item {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            font-size: 32px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+        }
+
+        .dock-item:hover {
+            transform: translateY(-16px) scale(1.2);
+            box-shadow: 0 16px 32px rgba(0, 120, 212, 0.4);
+        }
+
+        .dock-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--accent);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+            50% { opacity: 0.6; transform: translateX(-50%) scale(1.2); }
+        }
+
+        .dock-separator {
+            width: 2px;
+            height: 60px;
+            background: var(--border);
+            margin: 0 8px;
+            border-radius: 2px;
+        }
+
+        /* Right Dock */
+        #right-dock {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(30px);
+            border-radius: 12px;
+            padding: 8px 12px;
+            box-shadow: 0 4px 16px var(--shadow);
+            border: 1px solid var(--border);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+
+        #right-dock:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px var(--shadow);
+        }
+
+        .system-icon-item {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .system-icon-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .time-compact {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background 0.2s;
+            line-height: 1.2;
+        }
+
+        .time-compact:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .time-compact-time {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .time-compact-date {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        /* Start Menu */
+        #start-menu {
+            position: fixed;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            background: var(--bg-glass);
+            backdrop-filter: blur(40px);
+            border-radius: 20px;
+            width: 750px;
+            max-height: 750px;
+            box-shadow: 0 24px 96px var(--shadow);
+            border: 1px solid var(--border);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 1100;
+            overflow: hidden;
+        }
+
+        #start-menu.visible {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateX(-50%) scale(1);
+        }
+
+        .start-header {
+            padding: 28px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+        }
+
+        .start-user {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .start-user-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+        }
+
+        .start-user-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .start-search {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 14px;
+            color: white;
+            font-size: 15px;
+            outline: none;
+        }
+
+        .start-search::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .start-content {
+            padding: 28px;
+            max-height: 550px;
+            overflow-y: auto;
+        }
+
+        .start-section {
+            margin-bottom: 28px;
+        }
+
+        .start-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 18px;
+            opacity: 0.7;
+        }
+
+        .start-apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 18px;
+        }
+
+        .start-app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .start-app:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-4px);
+        }
+
+        .start-app-icon {
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            border-radius: 14px;
+            font-size: 32px;
+            box-shadow: 0 6px 18px rgba(0, 120, 212, 0.3);
+        }
+
+        .start-app-name {
+            font-size: 13px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Windows */
+        .window {
+            position: absolute;
+            background: var(--bg-secondary);
+            border-radius: 14px;
+            box-shadow: 0 24px 96px var(--shadow);
+            border: 1px solid var(--border);
+            min-width: 500px;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .window.minimizing {
+            animation: genieMinimize 0.6s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+            transform-origin: center bottom;
+        }
+
+        .window.restoring {
+            animation: genieRestore 0.6s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+            transform-origin: center bottom;
+        }
+
+        @keyframes genieMinimize {
+            0% { opacity: 1; transform: scale(1) translateY(0) scaleY(1); }
+            40% { opacity: 0.9; transform: scale(0.95) translateY(10vh) scaleY(0.9); }
+            70% { opacity: 0.5; transform: scale(0.7) translateY(40vh) scaleY(0.5); }
+            100% { opacity: 0; transform: scale(0.3) translateY(80vh) scaleY(0.1); }
+        }
+
+        @keyframes genieRestore {
+            0% { opacity: 0; transform: scale(0.3) translateY(80vh) scaleY(0.1); }
+            30% { opacity: 0.5; transform: scale(0.7) translateY(40vh) scaleY(0.5); }
+            60% { opacity: 0.9; transform: scale(0.95) translateY(10vh) scaleY(0.9); }
+            100% { opacity: 1; transform: scale(1) translateY(0) scaleY(1); }
+        }
+
+        .window.closing {
+            animation: fadeZoom 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeZoom {
+            to { transform: scale(0.85); opacity: 0; }
+        }
+
+        .window.minimized {
+            display: none;
+        }
+
+        .window.maximized {
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100vh !important;
+            border-radius: 0;
+        }
+
+        .window-header {
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: move;
+            user-select: none;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .window-btn {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .window-btn:hover {
+            transform: scale(1.15);
+        }
+
+        .window-btn.close { background: var(--danger); }
+        .window-btn.minimize { background: var(--warning); }
+        .window-btn.maximize { background: var(--success); }
+
+        .window-btn:hover::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Font Awesome 6 Free';
+            font-size: 8px;
+            font-weight: 900;
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .window-btn.close:hover::after { content: '\f00d'; }
+        .window-btn.minimize:hover::after { content: '\f068'; }
+        .window-btn.maximize:hover::after { content: '\f31e'; }
+
+        .window-icon {
+            font-size: 20px;
+        }
+
+        .window-title {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .window-content {
+            flex: 1;
+            padding: 0;
+            overflow: auto;
+            background: var(--bg-primary);
+        }
+
+        /* Toolbar */
+        .app-toolbar {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+        }
+
+        .toolbar-btn {
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 120, 212, 0.3);
+        }
+
+        /* Explorer */
+        .explorer-body {
+            display: flex;
+            height: 100%;
+        }
+
+        .explorer-sidebar {
+            width: 240px;
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            background: var(--bg-glass);
+        }
+
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+
+        .sidebar-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            opacity: 0.6;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-item {
+            padding: 12px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .sidebar-item:hover, .sidebar-item.active {
+            background: var(--accent);
+            transform: translateX(4px);
+        }
+
+        .sidebar-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .explorer-content {
+            flex: 1;
+            padding: 24px;
+        }
+
+        .explorer-path {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            font-family: 'Consolas', monospace;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .path-segment {
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .path-segment:hover {
+            color: var(--accent);
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 24px;
+        }
+
+        .file-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-4px);
+        }
+
+        .file-item.selected {
+            background: rgba(0, 120, 212, 0.2);
+            border: 2px solid var(--accent);
+        }
+
+        .file-item i {
+            font-size: 56px;
+        }
+
+        .file-name {
+            font-size: 13px;
+            text-align: center;
+            word-break: break-word;
+        }
+
+        /* Notepad */
+        .notepad-content {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .notepad-textarea {
+            flex: 1;
+            background: var(--bg-primary);
+            border: none;
+            color: var(--text-primary);
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 15px;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            padding: 24px;
+        }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: var(--bg-glass);
+            backdrop-filter: blur(30px);
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: 0 16px 64px var(--shadow);
+            border: 1px solid var(--border);
+            min-width: 240px;
+            display: none;
+            z-index: 2000;
+            animation: contextSlide 0.2s ease-out;
+        }
+
+        @keyframes contextSlide {
+            from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .context-menu.visible {
+            display: block;
+        }
+
+        .context-item {
+            padding: 12px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .context-item:hover {
+            background: var(--accent);
+            transform: translateX(4px);
+        }
+
+        .context-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .context-separator {
+            height: 1px;
+            background: var(--border);
+            margin: 8px 0;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            animation: fadeIn 0.2s;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 18px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 32px 128px var(--shadow);
+            border: 1px solid var(--border);
+            animation: modalBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes modalBounce {
+            from { transform: translateY(-80px) scale(0.8); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 14px 18px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 15px;
+            margin-bottom: 24px;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        .modal-input:focus {
+            border-color: var(--accent);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 12px 28px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .modal-btn.primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .modal-btn.primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0, 120, 212, 0.4);
+        }
+
+        .modal-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .modal-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Notifications */
+        #notifications {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 1500;
+        }
+
+        .notification {
+            background: var(--bg-glass);
+            backdrop-filter: blur(30px);
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 12px 48px var(--shadow);
+            border: 1px solid var(--border);
+            animation: notifSlide 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes notifSlide {
+            from { transform: translateX(450px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .notification-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 10px;
+        }
+
+        .notification-icon {
+            font-size: 28px;
+        }
+
+        .notification-title {
+            flex: 1;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .notification-message {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Wallpaper Picker */
+        .wallpaper-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .wallpaper-item {
+            width: 100%;
+            height: 100px;
+            border-radius: 12px;
+            background-size: cover;
+            background-position: center;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .wallpaper-item:hover {
+            transform: scale(1.05);
+            border-color: var(--accent);
+        }
+
+        .wallpaper-item.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.3);
+        }
+
+        /* Resize Handles */
+        .resize-handle {
+            position: absolute;
+            background: transparent;
+        }
+
+        .resize-handle.n { top: 0; left: 0; right: 0; height: 6px; cursor: n-resize; }
+        .resize-handle.s { bottom: 0; left: 0; right: 0; height: 6px; cursor: s-resize; }
+        .resize-handle.w { left: 0; top: 0; bottom: 0; width: 6px; cursor: w-resize; }
+        .resize-handle.e { right: 0; top: 0; bottom: 0; width: 6px; cursor: e-resize; }
+        .resize-handle.nw { top: 0; left: 0; width: 12px; height: 12px; cursor: nw-resize; }
+        .resize-handle.ne { top: 0; right: 0; width: 12px; height: 12px; cursor: ne-resize; }
+        .resize-handle.sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: sw-resize; }
+        .resize-handle.se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: se-resize; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* EXE Emulator Window */
+        .exe-emulator {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .exe-emulator-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .exe-emulator-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .exe-emulator-desc {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            max-width: 400px;
+        }
+
+        .exe-emulator-status {
+            padding: 12px 24px;
+            background: rgba(0, 120, 212, 0.2);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--accent);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            #left-dock, #right-dock {
+                display: none;
+            }
+
+            #center-dock {
+                bottom: 10px;
+                padding: 10px 18px;
+            }
+
+            .dock-item {
+                width: 52px;
+                height: 52px;
+            }
+
+            #start-menu {
+                width: 95%;
+            }
+        }
+    </style>
